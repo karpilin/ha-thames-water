@@ -109,7 +109,7 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
     _attr_state_class = SensorStateClass.TOTAL
     _attr_device_class = SensorDeviceClass.WATER
     _attr_native_unit_of_measurement = UnitOfVolume.LITERS
-    _attr_name = "Thames Water Sensor"
+    _attr_name = "Thames Water Meter Reading"
 
     def __init__(
         self,
@@ -277,16 +277,16 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
 
         # readings holds all hourly data for the entire period.
         readings: list[dict] = []
-        latest_usage = 0
+        latest_reading = 0
         pending_incomplete_days: list[tuple[datetime, list]] = []
 
         def _append_lines(day_dt: datetime, lines: list) -> int:
             """Append hourly lines for a day and return total usage."""
-            day_usage = 0
+            meter_reading = 0
             for line in lines:
                 time_str = line.Label
                 usage = line.Usage
-                day_usage += usage
+                meter_reading = line.Read
                 try:
                     hour, minute = map(int, time_str.split(":"))
                 except (ValueError, AttributeError) as err:
@@ -302,7 +302,7 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
                         "state": usage,  # Usage in Liters per hour
                     }
                 )
-            return day_usage
+            return meter_reading
 
         while current_date <= end_date:
             year = current_date.year
@@ -366,10 +366,10 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
                         month,
                         year,
                     )
-                    latest_usage = _append_lines(prev_day, prev_lines)
+                    latest_reading = _append_lines(prev_day, prev_lines)
                 pending_incomplete_days = []
 
-            latest_usage = _append_lines(d, lines)
+            latest_reading = _append_lines(d, lines)
 
         _LOGGER.info("Fetched %d historical entries", len(readings))
 
@@ -433,8 +433,8 @@ class ThamesWaterSensor(ThamesWaterEntity, SensorEntity):
             cumulative_start=initial_cost_cumulative,
             liter_cost=float(liter_cost),
         )
-        if latest_usage > 0:
-            self._state = latest_usage
+        if latest_reading > 0:
+            self._state = latest_reading
 
         # Build per-hour statistics from each reading.
         metadata_consumption = StatisticMetaData(
